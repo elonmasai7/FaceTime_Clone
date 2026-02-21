@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FaceTime Call</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="call-body">
+    <header class="topbar">
+      <div>
+        <h2 id="roomLabel">Room</h2>
+        <p id="modeLabel">Mode: Mesh</p>
+      </div>
+      <div class="top-actions">
+        <button id="copyLinkBtn" class="btn-inline">Copy Link</button>
+        <button id="fullscreenBtn" class="btn-inline">Full Screen</button>
+      </div>
+    </header>
+
+    <aside class="participants-panel" id="participantsPanel">
+      <h3>Participants</h3>
+      <ul id="participantsList"></ul>
+    </aside>
+
+    <main>
+      <section id="videoGrid" class="video-grid"></section>
+      <div id="toastContainer" class="toast-container"></div>
+    </main>
+
+    <footer class="controls-bar">
+      <button id="micBtn" class="control-btn">Mute Mic</button>
+      <button id="camBtn" class="control-btn">Stop Camera</button>
+      <button id="flipBtn" class="control-btn">Flip Camera</button>
+      <button id="shareBtn" class="control-btn">Share Screen</button>
+      <button id="participantsBtn" class="control-btn">Participants</button>
+      <button id="leaveBtn" class="control-btn danger">End Call</button>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/vendor/peerjs.min.js"></script>
+    <script src="/call.js"></script>
+  </body>
+</html>

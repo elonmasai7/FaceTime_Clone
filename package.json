@@ -1,0 +1,77 @@
+{
+  "name": "facetime-clone-web",
+  "version": "1.0.0",
+  "description": "FaceTime-like WebRTC desktop app with Electron + Node.js + PeerJS",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:web": "node server.js",
+    "generate:icons": "node scripts/generate-icons.js",
+    "dist:linux": "npm run generate:icons && electron-builder --linux AppImage deb rpm pacman tar.gz",
+    "dist:dir": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": [
+    "webrtc",
+    "peerjs",
+    "socket.io",
+    "video-call",
+    "facetime-clone"
+  ],
+  "author": "FaceTime Clone Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "peerjs": "^1.5.5",
+    "peer": "^1.0.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.facetime.clone",
+    "productName": "FaceTime Clone",
+    "executableName": "facetime-clone",
+    "copyright": "Copyright (c) 2026 FaceTime Clone Team",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "asar": true,
+    "files": [
+      "electron/**/*",
+      "public/**/*",
+      "server.js",
+      "scripts/generate-icons.js",
+      "build/icons/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "linux": {
+      "icon": "build/icons",
+      "category": "Network;VideoConference;AudioVideo",
+      "maintainer": "FaceTime Clone Team",
+      "synopsis": "Private desktop video calling with WebRTC",
+      "description": "FaceTime Clone is a Linux desktop app for private 1:1 and group video calls with screen sharing, room links, and low-latency WebRTC media.",
+      "desktop": {
+        "Name": "FaceTime Clone",
+        "Comment": "Private desktop WebRTC calling",
+        "StartupWMClass": "FaceTime Clone",
+        "Keywords": "chat;video;call;webrtc;meeting;",
+        "StartupNotify": "true",
+        "Terminal": "false"
+      },
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm",
+        "pacman",
+        "tar.gz"
+      ]
+    }
+  }
+}
