@@ -255,7 +255,7 @@ input {
 
 .controls-bar {
   display: grid;
-  grid-template-columns: repeat(6, minmax(90px, 1fr));
+  grid-template-columns: repeat(7, minmax(90px, 1fr));
   gap: 0.6rem;
   padding: 0.8rem;
   background: #ffffff;
@@ -301,6 +301,105 @@ input {
   box-shadow: var(--shadow);
 }
 
+.diag-panel {
+  position: fixed;
+  left: 0.9rem;
+  bottom: 4.8rem;
+  width: min(320px, 86vw);
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #dbe5dd;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 0.6rem 0.7rem;
+  z-index: 45;
+  transform: translateY(120%);
+  transition: transform 0.2s ease;
+}
+
+.diag-panel.open {
+  transform: translateY(0);
+}
+
+.diag-panel h4 {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #1d3628;
+}
+
+.diag-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.diag-copy-btn {
+  font-size: 0.74rem;
+  padding: 0.25rem 0.45rem;
+}
+
+.diag-panel ul {
+  margin: 0.55rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.diag-panel li {
+  font-size: 0.8rem;
+  color: #355344;
+  background: #f4faf6;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 18, 12, 0.42);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+  padding: 1rem;
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal-card {
+  width: min(420px, 96vw);
+  background: #fff;
+  border-radius: 14px;
+  padding: 1rem;
+  border: 1px solid #d8e3db;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.modal-note {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.modal-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: #355344;
+}
+
+.modal-actions {
+  margin-top: 0.35rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
 @media (max-width: 768px) {
   .video-grid {
     height: calc(100vh - 172px);
@@ -308,11 +407,15 @@ input {
   }
 
   .controls-bar {
-    grid-template-columns: repeat(3, minmax(90px, 1fr));
+    grid-template-columns: repeat(4, minmax(90px, 1fr));
   }
 
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .diag-panel {
+    bottom: 8.2rem;
   }
 }

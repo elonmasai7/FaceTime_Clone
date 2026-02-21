@@ -13,6 +13,7 @@
         <p id="modeLabel">Mode: Mesh</p>
       </div>
       <div class="top-actions">
+        <button id="diagBtn" class="btn-inline">Diagnostics</button>
         <button id="copyLinkBtn" class="btn-inline">Copy Link</button>
         <button id="fullscreenBtn" class="btn-inline">Full Screen</button>
       </div>
@@ -25,14 +26,41 @@
 
     <main>
       <section id="videoGrid" class="video-grid"></section>
+      <aside id="diagPanel" class="diag-panel">
+        <div class="diag-head">
+          <h4>Diagnostics</h4>
+          <button id="diagCopyBtn" class="btn-inline diag-copy-btn">Copy</button>
+        </div>
+        <ul id="diagList"></ul>
+      </aside>
       <div id="toastContainer" class="toast-container"></div>
     </main>
+
+    <div id="e2eeModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="e2eeModalTitle">
+        <h3 id="e2eeModalTitle">Enable App-Layer E2EE</h3>
+        <p class="modal-note">All participants must enter the same passphrase.</p>
+        <label for="e2eePassphraseInput">Passphrase</label>
+        <input id="e2eePassphraseInput" type="password" minlength="8" autocomplete="off" />
+        <label for="e2eePassphraseConfirmInput">Confirm passphrase</label>
+        <input id="e2eePassphraseConfirmInput" type="password" minlength="8" autocomplete="off" />
+        <label class="modal-check">
+          <input id="e2eeShowPassphrase" type="checkbox" />
+          Show passphrase
+        </label>
+        <div class="modal-actions">
+          <button id="e2eeModalCancelBtn" class="btn-secondary">Cancel</button>
+          <button id="e2eeModalEnableBtn" class="btn-primary">Enable E2EE</button>
+        </div>
+      </section>
+    </div>
 
     <footer class="controls-bar">
       <button id="micBtn" class="control-btn">Mute Mic</button>
       <button id="camBtn" class="control-btn">Stop Camera</button>
       <button id="flipBtn" class="control-btn">Flip Camera</button>
       <button id="shareBtn" class="control-btn">Share Screen</button>
+      <button id="e2eeBtn" class="control-btn">E2EE Off</button>
       <button id="participantsBtn" class="control-btn">Participants</button>
       <button id="leaveBtn" class="control-btn danger">End Call</button>
     </footer>

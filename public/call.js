@@ -15,10 +15,21 @@ const micBtn = document.getElementById('micBtn');
 const camBtn = document.getElementById('camBtn');
 const flipBtn = document.getElementById('flipBtn');
 const shareBtn = document.getElementById('shareBtn');
+const e2eeBtn = document.getElementById('e2eeBtn');
 const leaveBtn = document.getElementById('leaveBtn');
 const participantsBtn = document.getElementById('participantsBtn');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
+const diagBtn = document.getElementById('diagBtn');
+const diagPanel = document.getElementById('diagPanel');
+const diagList = document.getElementById('diagList');
+const diagCopyBtn = document.getElementById('diagCopyBtn');
+const e2eeModal = document.getElementById('e2eeModal');
+const e2eePassphraseInput = document.getElementById('e2eePassphraseInput');
+const e2eePassphraseConfirmInput = document.getElementById('e2eePassphraseConfirmInput');
+const e2eeShowPassphrase = document.getElementById('e2eeShowPassphrase');
+const e2eeModalCancelBtn = document.getElementById('e2eeModalCancelBtn');
+const e2eeModalEnableBtn = document.getElementById('e2eeModalEnableBtn');
 
 if (!roomId) {
   window.location.href = '/';
@@ -32,6 +43,7 @@ const PEER_CONFIG = {
   path: '/peerjs',
   secure: window.location.protocol === 'https:',
   config: {
+    encodedInsertableStreams: true,
     iceTransportPolicy: 'all',
     sdpSemantics: 'unified-plan',
     iceServers: [
@@ -68,12 +80,126 @@ let localPeerId = '';
 let reconnectAttempts = new Map();
 let currentFacingMode = 'user';
 const speakerMonitors = new Map();
+let e2eeWorker = null;
+let e2eeEnabled = false;
+let e2eeKeyMaterial = null;
+let e2eeFingerprint = 'none';
+let pendingPassphraseResolver = null;
 
 const mediaState = {
   micEnabled: true,
   camEnabled: true,
   screenSharing: false
 };
+
+const diagnostics = {
+  runtime: window.desktopApp && window.desktopApp.isElectron ? 'electron' : 'browser',
+  screenSharePath: 'idle',
+  fullscreenPath: 'idle',
+  e2eeStatus: 'off',
+  e2eePath: 'none',
+  e2eeFingerprint: 'none',
+  lastError: 'none'
+};
+
+function updateDiagnostics() {
+  if (!diagList) {
+    return;
+  }
+  diagList.innerHTML = '';
+  const rows = [
+    `runtime: ${diagnostics.runtime}`,
+    `screen-share path: ${diagnostics.screenSharePath}`,
+    `fullscreen path: ${diagnostics.fullscreenPath}`,
+    `e2ee status: ${diagnostics.e2eeStatus}`,
+    `e2ee path: ${diagnostics.e2eePath}`,
+    `e2ee fingerprint: ${diagnostics.e2eeFingerprint}`,
+    `last error: ${diagnostics.lastError}`,
+    `room mode: ${currentMode}`
+  ];
+  rows.forEach((row) => {
+    const item = document.createElement('li');
+    item.textContent = row;
+    diagList.appendChild(item);
+  });
+}
+
+function diagnosticsText() {
+  return [
+    'FaceTime Clone Diagnostics',
+    `timestamp: ${new Date().toISOString()}`,
+    `room: ${roomId}`,
+    `runtime: ${diagnostics.runtime}`,
+    `screen-share path: ${diagnostics.screenSharePath}`,
+    `fullscreen path: ${diagnostics.fullscreenPath}`,
+    `e2ee status: ${diagnostics.e2eeStatus}`,
+    `e2ee path: ${diagnostics.e2eePath}`,
+    `e2ee fingerprint: ${diagnostics.e2eeFingerprint}`,
+    `room mode: ${currentMode}`,
+    `last error: ${diagnostics.lastError}`,
+    `user-agent: ${navigator.userAgent}`
+  ].join('\n');
+}
+
+async function copyDiagnostics() {
+  const text = diagnosticsText();
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Diagnostics copied.');
+  } catch (_error) {
+    showToast('Clipboard blocked. Open DevTools and copy diagnostics manually.');
+    console.log(text);
+  }
+}
+
+function formatFingerprint(bytes) {
+  if (!bytes || !bytes.length) {
+    return 'none';
+  }
+  const hex = Array.from(bytes)
+    .slice(0, 12)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return hex.match(/.{1,4}/g).join('-');
+}
+
+function openE2EEModal() {
+  if (!e2eeModal) {
+    return;
+  }
+  e2eePassphraseInput.value = '';
+  e2eePassphraseConfirmInput.value = '';
+  e2eeShowPassphrase.checked = false;
+  e2eePassphraseInput.type = 'password';
+  e2eePassphraseConfirmInput.type = 'password';
+  e2eeModal.classList.add('open');
+  e2eeModal.setAttribute('aria-hidden', 'false');
+  e2eePassphraseInput.focus();
+}
+
+function closeE2EEModal() {
+  if (!e2eeModal) {
+    return;
+  }
+  e2eeModal.classList.remove('open');
+  e2eeModal.setAttribute('aria-hidden', 'true');
+}
+
+function resolvePassphraseFlow(value) {
+  if (!pendingPassphraseResolver) {
+    return;
+  }
+  const resolver = pendingPassphraseResolver;
+  pendingPassphraseResolver = null;
+  resolver(value);
+}
+
+function requestE2EEPassphrase() {
+  return new Promise((resolve) => {
+    pendingPassphraseResolver = resolve;
+    openE2EEModal();
+  });
+}
 
 function showToast(message) {
   const node = document.createElement('div');
@@ -165,6 +291,10 @@ function updateTileBadges(peerId) {
   if (state && state.mediaState.screenSharing) {
     chunks.push('🖥 Sharing');
   }
+  if (e2eeEnabled) {
+    chunks.push('🛡 E2EE');
+    chunks.push(`FP ${e2eeFingerprint}`);
+  }
 
   badge.textContent = chunks.join(' | ');
 }
@@ -180,6 +310,7 @@ function updateParticipantsUI() {
     if (!ms.micEnabled) flags.push('mic off');
     if (!ms.camEnabled) flags.push('cam off');
     if (ms.screenSharing) flags.push('sharing');
+    if (e2eeEnabled) flags.push(`fp ${e2eeFingerprint}`);
     const suffix = flags.length ? ` (${flags.join(', ')})` : '';
     item.textContent = `${participant.displayName}${participant.peerId === localPeerId ? ' (You)' : ''}${suffix}`;
     participantsList.appendChild(item);
@@ -283,6 +414,121 @@ function preferVP8Codec(peerConnection) {
   });
 }
 
+function isInsertableE2EESupported() {
+  return Boolean(window.RTCRtpScriptTransform && window.Worker && window.crypto && window.crypto.subtle);
+}
+
+function updateE2EEButton() {
+  if (!e2eeBtn) {
+    return;
+  }
+  if (!isInsertableE2EESupported()) {
+    e2eeBtn.classList.add('off');
+    e2eeBtn.textContent = 'E2EE N/A';
+    e2eeBtn.disabled = true;
+    diagnostics.e2eeStatus = 'unsupported';
+    diagnostics.e2eePath = 'none';
+    diagnostics.e2eeFingerprint = 'none';
+    updateDiagnostics();
+    return;
+  }
+  e2eeBtn.disabled = false;
+  e2eeBtn.classList.toggle('off', !e2eeEnabled);
+  e2eeBtn.textContent = e2eeEnabled ? 'E2EE On' : 'E2EE Off';
+  diagnostics.e2eeStatus = e2eeEnabled ? 'on' : 'off';
+  diagnostics.e2eePath = 'insertable-streams';
+  diagnostics.e2eeFingerprint = e2eeFingerprint;
+  updateDiagnostics();
+}
+
+function ensureE2EEWorker() {
+  if (e2eeWorker) {
+    return e2eeWorker;
+  }
+  e2eeWorker = new Worker('/e2ee-worker.js');
+  return e2eeWorker;
+}
+
+async function deriveE2EEKey(passphrase) {
+  const encoder = new TextEncoder();
+  const payload = encoder.encode(`${roomId}|${passphrase}`);
+  const digest = await crypto.subtle.digest('SHA-256', payload);
+  return new Uint8Array(digest);
+}
+
+function applyE2EEToPeerConnection(peerConnection) {
+  if (!peerConnection || !isInsertableE2EESupported()) {
+    return;
+  }
+
+  const worker = ensureE2EEWorker();
+  const optionsBase = {
+    keyMaterial: e2eeKeyMaterial ? Array.from(e2eeKeyMaterial) : [],
+    enabled: e2eeEnabled
+  };
+
+  peerConnection.getSenders().forEach((sender) => {
+    if (!sender || !sender.track || !('transform' in sender)) {
+      return;
+    }
+    sender.transform = new RTCRtpScriptTransform(worker, {
+      ...optionsBase,
+      operation: 'encode',
+      kind: sender.track.kind
+    });
+  });
+
+  peerConnection.getReceivers().forEach((receiver) => {
+    if (!receiver || !receiver.track || !('transform' in receiver)) {
+      return;
+    }
+    receiver.transform = new RTCRtpScriptTransform(worker, {
+      ...optionsBase,
+      operation: 'decode',
+      kind: receiver.track.kind
+    });
+  });
+}
+
+function reapplyE2EEToAllCalls() {
+  calls.forEach((entry) => {
+    if (entry && entry.call && entry.call.peerConnection) {
+      applyE2EEToPeerConnection(entry.call.peerConnection);
+    }
+  });
+}
+
+async function toggleE2EE() {
+  if (!isInsertableE2EESupported()) {
+    showToast('Insertable streams are not supported in this runtime.');
+    return;
+  }
+
+  if (!e2eeEnabled) {
+    const passphrase = await requestE2EEPassphrase();
+    if (!passphrase) {
+      return;
+    }
+    e2eeKeyMaterial = await deriveE2EEKey(passphrase);
+    e2eeFingerprint = formatFingerprint(e2eeKeyMaterial);
+    diagnostics.e2eeFingerprint = e2eeFingerprint;
+    e2eeEnabled = true;
+    diagnostics.lastError = 'none';
+    showToast(`App-layer E2EE enabled. Fingerprint: ${e2eeFingerprint}`);
+  } else {
+    e2eeEnabled = false;
+    e2eeKeyMaterial = null;
+    e2eeFingerprint = 'none';
+    diagnostics.e2eeFingerprint = 'none';
+    diagnostics.lastError = 'none';
+    showToast('App-layer E2EE disabled.');
+  }
+
+  reapplyE2EEToAllCalls();
+  updateE2EEButton();
+  [...participantState.keys()].forEach((peerId) => updateTileBadges(peerId));
+}
+
 function attachRemoteStream(peerId, stream) {
   const existing = calls.get(peerId);
   if (existing && existing.tile) {
@@ -375,6 +621,7 @@ function connectToPeer(participant) {
     retries: reconnectAttempts.get(participant.peerId) || 0
   });
   preferVP8Codec(call.peerConnection);
+  applyE2EEToPeerConnection(call.peerConnection);
 
   call.on('stream', (remoteStream) => {
     attachRemoteStream(participant.peerId, remoteStream);
@@ -400,6 +647,7 @@ function handleIncomingCall(call) {
     retries: reconnectAttempts.get(inboundPeerId) || 0
   });
   preferVP8Codec(call.peerConnection);
+  applyE2EEToPeerConnection(call.peerConnection);
 
   call.on('stream', (remoteStream) => {
     attachRemoteStream(inboundPeerId, remoteStream);
@@ -491,6 +739,9 @@ async function toggleScreenShare() {
         },
         audio: false
       });
+      diagnostics.screenSharePath = 'browser-getDisplayMedia';
+      diagnostics.lastError = 'none';
+      updateDiagnostics();
     } catch (primaryError) {
       // Electron fallback path when browser-level getDisplayMedia is blocked.
       if (window.desktopApp && typeof window.desktopApp.getScreenSource === 'function') {
@@ -510,6 +761,9 @@ async function toggleScreenShare() {
             }
           }
         });
+        diagnostics.screenSharePath = 'electron-desktopCapturer-fallback';
+        diagnostics.lastError = 'none';
+        updateDiagnostics();
       } else {
         throw primaryError;
       }
@@ -545,6 +799,9 @@ async function toggleScreenShare() {
     };
   } catch (error) {
     console.error('share error', error);
+    diagnostics.lastError = error && error.message ? error.message : 'screen share failed';
+    diagnostics.screenSharePath = 'failed';
+    updateDiagnostics();
     showToast('Screen sharing failed or was blocked.');
   }
 }
@@ -558,6 +815,9 @@ function stopScreenShare() {
   screenStream = null;
 
   mediaState.screenSharing = false;
+  diagnostics.screenSharePath = 'idle';
+  diagnostics.lastError = 'none';
+  updateDiagnostics();
   shareBtn.classList.remove('off');
   shareBtn.textContent = 'Share Screen';
   emitMediaState();
@@ -664,6 +924,7 @@ socket.on('room-state', ({ participants, mode, maxParticipants }) => {
   participants
     .filter((p) => p.peerId !== localPeerId)
     .forEach((participant) => connectToPeer(participant));
+  updateDiagnostics();
 });
 
 socket.on('participants-updated', ({ participants, mode }) => {
@@ -771,6 +1032,10 @@ function leaveCall() {
   if (peer && !peer.destroyed) {
     peer.destroy();
   }
+  if (e2eeWorker) {
+    e2eeWorker.terminate();
+    e2eeWorker = null;
+  }
 
   window.location.href = '/';
 }
@@ -785,6 +1050,53 @@ function attachControls() {
   });
 
   shareBtn.addEventListener('click', toggleScreenShare);
+  e2eeBtn.addEventListener('click', () => {
+    toggleE2EE().catch((error) => {
+      diagnostics.lastError = error && error.message ? error.message : 'e2ee toggle failed';
+      updateDiagnostics();
+      showToast('E2EE toggle failed.');
+    });
+  });
+
+  e2eeShowPassphrase.addEventListener('change', () => {
+    const nextType = e2eeShowPassphrase.checked ? 'text' : 'password';
+    e2eePassphraseInput.type = nextType;
+    e2eePassphraseConfirmInput.type = nextType;
+  });
+
+  e2eeModalCancelBtn.addEventListener('click', () => {
+    closeE2EEModal();
+    resolvePassphraseFlow(null);
+  });
+
+  e2eeModalEnableBtn.addEventListener('click', () => {
+    const passphrase = String(e2eePassphraseInput.value || '');
+    const confirm = String(e2eePassphraseConfirmInput.value || '');
+    if (passphrase.length < 8) {
+      showToast('Passphrase too short. Use at least 8 characters.');
+      return;
+    }
+    if (passphrase !== confirm) {
+      showToast('Passphrases do not match.');
+      return;
+    }
+    closeE2EEModal();
+    resolvePassphraseFlow(passphrase);
+  });
+
+  e2eeModal.addEventListener('click', (event) => {
+    if (event.target === e2eeModal) {
+      closeE2EEModal();
+      resolvePassphraseFlow(null);
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && e2eeModal.classList.contains('open')) {
+      closeE2EEModal();
+      resolvePassphraseFlow(null);
+    }
+  });
   flipBtn.addEventListener('click', switchCamera);
 
   leaveBtn.addEventListener('click', leaveCall);
@@ -792,25 +1104,45 @@ function attachControls() {
   participantsBtn.addEventListener('click', () => {
     participantsPanel.classList.toggle('open');
   });
+  diagBtn.addEventListener('click', () => {
+    diagPanel.classList.toggle('open');
+  });
+  diagCopyBtn.addEventListener('click', copyDiagnostics);
 
   fullscreenBtn.addEventListener('click', async () => {
     if (window.desktopApp && typeof window.desktopApp.toggleFullscreen === 'function') {
       const state = await window.desktopApp.toggleFullscreen();
       if (!state || !state.ok) {
+        diagnostics.fullscreenPath = 'electron-ipc-failed';
+        diagnostics.lastError = 'electron fullscreen toggle failed';
+        updateDiagnostics();
         showToast('Fullscreen failed.');
+        return;
       }
+      diagnostics.fullscreenPath = 'electron-ipc';
+      diagnostics.lastError = 'none';
+      updateDiagnostics();
       return;
     }
 
     if (!document.fullscreenElement) {
       await document.documentElement.requestFullscreen().catch(() => {
+        diagnostics.fullscreenPath = 'browser-api-failed';
+        diagnostics.lastError = 'browser fullscreen blocked';
+        updateDiagnostics();
         showToast('Fullscreen blocked by browser.');
       });
+      diagnostics.fullscreenPath = 'browser-api';
+      diagnostics.lastError = 'none';
+      updateDiagnostics();
       return;
     }
     await document.exitFullscreen().catch(() => {
       // noop
     });
+    diagnostics.fullscreenPath = 'browser-api';
+    diagnostics.lastError = 'none';
+    updateDiagnostics();
   });
 
   copyLinkBtn.addEventListener('click', async () => {
@@ -829,8 +1161,15 @@ function attachControls() {
 }
 
 async function start() {
+  if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    diagnostics.lastError = 'insecure context (use https)';
+    updateDiagnostics();
+    showToast('Insecure context detected. Use HTTPS for strongest WebRTC security.');
+  }
   requestNotificationPermission();
   attachControls();
+  updateE2EEButton();
+  updateDiagnostics();
   await setupLocalMedia();
   emitMediaState();
 }

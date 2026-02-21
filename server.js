@@ -63,6 +63,18 @@ function createFaceTimeServer(options = {}) {
   }
 
   app.use(express.json());
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self)');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws: wss:; worker-src 'self' blob:;"
+    );
+    next();
+  });
   app.use(express.static(path.join(__dirname, 'public')));
 
   // Serve PeerJS client locally so the desktop app works without external CDNs.

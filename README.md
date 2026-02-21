@@ -89,6 +89,8 @@ chmod +x dist/FaceTime\ Clone-*.AppImage
 ## Notes
 
 - WebRTC media uses DTLS/SRTP encryption by default.
+- Optional app-layer E2EE is available in-call via `E2EE Off/On` button.
+  Use the same passphrase on all participants to decrypt media.
 - Rooms are private-by-code and kept in-memory.
 - Group limit remains 8 participants.
 - STUN/TURN configuration is in `public/call.js`.
