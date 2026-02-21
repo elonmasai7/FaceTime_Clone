@@ -93,4 +93,4 @@ chmod +x dist/FaceTime\ Clone-*.AppImage
 - Group limit remains 8 participants.
 - STUN/TURN configuration is in `public/call.js`.
 - On Electron/Linux, screen sharing and fullscreen are routed through Electron permission + IPC handlers for reliability.
-- If a user's distro lacks desktop dependencies for Electron runtime, install standard Chromium/Electron runtime libs from the distro repos.
+- If a user's distro lacks desktop dependencies for Electron runtime, install standard Chromium/Electron runtime libs from the distro repos
